@@ -1,0 +1,104 @@
+/* Main App Styling */
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg);
+    color: var(--text);
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  
+  [data-theme="light"] {
+    --bg: #f9f9f9;
+    --text: #111;
+    --card: #fff;
+    --btn: #111;
+    --btn-text: #fff;
+  }
+  
+  [data-theme="dark"] {
+    --bg: #121212;
+    --text: #f1f1f1;
+    --card: #1e1e1e;
+    --btn: #fff;
+    --btn-text: #000;
+  }
+  
+  button {
+    background: var(--btn);
+    color: var(--btn-text);
+    border: none;
+    padding: 0.6rem 1.2rem;
+    margin: 0.5rem;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: transform 0.2s ease;
+  }
+  
+  button:hover {
+    transform: scale(1.05);
+  }
+  
+  input, select {
+    margin: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    min-width: 250px;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  
+  th, td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  tr:hover {
+    background-color: rgba(0,0,0,0.05);
+    transition: 0.2s;
+  }
+  
+  .banner {
+    background: linear-gradient(120deg, #007cf0, #00dfd8);
+    padding: 2rem;
+    color: #fff;
+    text-align: center;
+    border-radius: 10px;
+    margin: 1rem 0;
+    animation: fadeIn 1.2s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    0% { opacity: 0; transform: translateY(-15px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  
+  .dashboard {
+    padding: 2rem;
+    background-color: var(--card);
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    margin-top: 1rem;
+    animation: fadeIn 1s ease;
+  }
+  
+  .dashboard h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    color: var(--text);
+  }
+  
+  .dashboard p {
+    font-size: 1.1rem;
+    margin: 0.5rem 0;
+    color: var(--text);
+  }
+  
