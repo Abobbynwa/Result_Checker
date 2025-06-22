@@ -10,6 +10,14 @@ export const emailResult = async (reg_no) => {
   return res.data;
 };
 
-export const downloadResult = (reg_no) => {
-  window.open(`http://localhost:5000/api/results/download/${encodeURIComponent(reg_no)}`, '_blank');
+export const downloadResult = async (reg_no) => {
+  const res = await api.get(`/results/download/${encodeURIComponent(reg_no)}`, {
+    responseType: 'blob'
+  });
+  const url = window.URL.createObjectURL(new Blob([res.data]));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${reg_no}_result.pdf`;
+  a.click();
+  window.URL.revokeObjectURL(url);
 };
