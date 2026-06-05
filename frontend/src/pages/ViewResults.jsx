@@ -1,39 +1,59 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const ViewResults = () => {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchResult = async () => {
+      if (!user?.reg_no) return;
+
       try {
-        const res = await axios.get(`http://localhost:5000/api/results/view/${user.reg_no}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await api.get(`/results/view/${encodeURIComponent(user.reg_no)}`);
         setResult(res.data);
+        setError('');
       } catch (err) {
         setResult(null);
+        setError(err.response?.data?.msg || 'No result yet.');
+      } finally {
+        setLoading(false);
       }
     };
 
-    if (user?.reg_no) fetch();
-  }, [user, token]);
+    fetchResult();
+  }, [user]);
 
-  if (!result) return <p>No result yet.</p>;
+  if (loading) return <p>Loading result...</p>;
+  if (!result) return <p>{error || 'No result yet.'}</p>;
 
   return (
     <div style={{ padding: '2rem' }}>
-      <h3>📄 {result.student} | {result.class} | {result.reg_no}</h3>
+      <h3>{result.student} | {result.class} | {result.reg_no}</h3>
       <p>Total: {result.total} | Average: {result.average}%</p>
-      <ul>
-        {result.results.map((r, i) => (
-          <li key={i}>
-            {r.subject} - {r.score} ({r.grade}) [{r.remark}]
-          </li>
-        ))}
-      </ul>
+      <table>
+        <thead>
+          <tr>
+            <th>Subject</th>
+            <th>Score</th>
+            <th>Grade</th>
+            <th>Remark</th>
+          </tr>
+        </thead>
+        <tbody>
+          {result.results.map((row, index) => (
+            <tr key={`${row.subject}-${index}`}>
+              <td>{row.subject}</td>
+              <td>{row.score}</td>
+              <td>{row.grade}</td>
+              <td>{row.remark}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
