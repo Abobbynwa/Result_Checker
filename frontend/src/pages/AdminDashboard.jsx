@@ -1,25 +1,24 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const AdminDashboard = () => {
-  const navigate = useNavigate();
+  const { logout } = useAuth();
+
   return (
-    <div style={{ padding: '2rem' }}>
-      <h2>🧠 Admin Dashboard</h2>
-      <button onClick={() => navigate('/admin/upload')}>📤 Upload Results</button>
-      <button onClick={() => navigate('/admin/analytics')}>📊 Class Analytics</button>
+    <div className="dashboard" style={{ padding: '2rem' }}>
+      <h2>Admin Dashboard</h2>
+      <p>Manage students, upload results, and review class analytics.</p>
+
+      <ul>
+        <li><Link to="/admin/add-student">Add Student Manually</Link></li>
+        <li><Link to="/admin/upload">Upload Results CSV</Link></li>
+        <li><Link to="/admin/analytics">Class Analytics</Link></li>
+      </ul>
+
+      <button type="button" onClick={logout}>Logout</button>
     </div>
   );
 };
-
-<div className="dashboard">
-  <h2>🛠️ Admin Dashboard</h2>
-
-  <ul>
-    <li><Link to="/admin/add-student">➕ Add Student Manually</Link></li>
-    <li><Link to="/admin/upload">📤 Upload Results (CSV)</Link></li>
-    <li><Link to="/admin/analytics">📊 Class Analytics</Link></li>
-  </ul>
-</div>
 
 export default AdminDashboard;

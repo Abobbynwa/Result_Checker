@@ -1,67 +1,63 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 const UploadResults = () => {
-  const { token } = useAuth();
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const upload = async () => {
-    if (!file) return alert("📁 Please select a CSV file first.");
+    if (!file) {
+      setStatus({ type: 'error', msg: 'Please select a CSV file first.', log: [] });
+      return;
+    }
 
     const form = new FormData();
     form.append('file', file);
+    setLoading(true);
+    setStatus(null);
 
     try {
-      const res = await axios.post('http://localhost:5000/api/admin/upload_csv', form, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        }
+      const res = await api.post('/admin/upload_csv', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       setStatus({
         type: 'success',
-        msg: res.data.msg || '✅ Upload successful',
+        msg: res.data.msg || 'Upload successful',
         log: res.data.log || [],
-        added: res.data.added,
-        skipped: res.data.skipped
+        added: res.data.added || 0,
+        skipped: res.data.skipped || 0,
       });
     } catch (err) {
       setStatus({
         type: 'error',
-        msg: err.response?.data?.msg || '❌ Upload failed',
-        log: []
+        msg: err.response?.data?.msg || 'Upload failed',
+        log: [],
       });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div style={{ padding: '2rem', maxWidth: '600px', margin: 'auto' }}>
-      <h2>📤 Upload Student Results</h2>
-      <p>Only CSV files with headers: <code>reg_no,subject,score,term,session</code></p>
-      <input
-        type="file"
-        accept=".csv"
-        onChange={(e) => setFile(e.target.files[0])}
-        style={{ marginBottom: '1rem' }}
-      />
+      <h2>Upload Student Results</h2>
+      <p>CSV headers required: <code>reg_no,subject,score,term,session</code></p>
+      <input type="file" accept=".csv" onChange={(event) => setFile(event.target.files[0])} />
       <br />
-      <button onClick={upload} style={{ padding: '0.5rem 1rem' }}>Upload</button>
+      <button type="button" onClick={upload} disabled={loading} style={{ marginTop: '1rem' }}>
+        {loading ? 'Uploading...' : 'Upload'}
+      </button>
 
       {status && (
-        <div style={{ marginTop: '1rem', color: status.type === 'success' ? 'green' : 'crimson' }}>
+        <div className={status.type === 'success' ? 'success-text' : 'error-text'} style={{ marginTop: '1rem' }}>
           <p>{status.msg}</p>
           {status.type === 'success' && (
             <>
-              <p>✅ Added: {status.added} | ⛔ Skipped: {status.skipped}</p>
+              <p>Added/Updated: {status.added} | Skipped: {status.skipped}</p>
               {status.log.length > 0 && (
-                <ul>
-                  {status.log.map((l, i) => (
-                    <li key={i}>⚠️ {l}</li>
-                  ))}
-                </ul>
+                <ul>{status.log.map((item, index) => <li key={index}>{item}</li>)}</ul>
               )}
             </>
           )}
