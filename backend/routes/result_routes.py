@@ -1,118 +1,142 @@
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.result import Result
 from models.subject import Subject
 from models.student import Student
-from extensions import db
 from utils.pdf_generator import generate_result_pdf
 from utils.mailer import send_result_email
 import io
 
-result_bp = Blueprint('result', __name__)
+result_bp = Blueprint("result", __name__)
 
-# 📌 Helper Functions
+
 def calculate_grade(score):
-    if score >= 70: return 'A'
-    elif score >= 60: return 'B'
-    elif score >= 50: return 'C'
-    elif score >= 40: return 'D'
-    else: return 'F'
+    score = int(score)
+    if score >= 70:
+        return "A"
+    if score >= 60:
+        return "B"
+    if score >= 50:
+        return "C"
+    if score >= 40:
+        return "D"
+    return "F"
+
 
 def get_remark(grade):
     return {
-        'A': 'Excellent',
-        'B': 'Very Good',
-        'C': 'Good',
-        'D': 'Fair',
-        'F': 'Needs Improvement'
-    }.get(grade, '')
+        "A": "Excellent",
+        "B": "Very Good",
+        "C": "Good",
+        "D": "Fair",
+        "F": "Needs Improvement",
+    }.get(grade, "")
 
-# ✅ View Student Result
-@result_bp.route('/view/<path:reg_no>', methods=['GET'])
-@jwt_required()
-def view_result(reg_no):
-    user = get_jwt_identity()
-    if user['role'] != 'student':
-        return jsonify({"msg": "Only students can view results"}), 403
 
+def get_student_or_404(reg_no):
     student = Student.query.filter_by(reg_no=reg_no).first()
     if not student:
-        return jsonify({"msg": "Student not found"}), 404
+        return None, (jsonify({"msg": "Student not found"}), 404)
+    return student, None
 
+
+def require_student_owner(identity, student):
+    return identity.get("role") == "student" and int(identity.get("id")) == int(student.id)
+
+
+def build_result_payload(student):
     results = Result.query.filter_by(student_id=student.id).all()
     if not results:
-        return jsonify({"msg": "No results found"}), 404
+        return None, (jsonify({"msg": "No results found"}), 404)
 
     payload = []
     result_data = []
     total = 0
 
-    for res in results:
-        subject = Subject.query.get(res.subject_id)
+    for result in results:
+        subject = Subject.query.get(result.subject_id)
         if not subject:
             continue
-        grade = calculate_grade(res.score)
+
+        grade = calculate_grade(result.score)
         remark = get_remark(grade)
-        total += res.score
+        total += int(result.score)
 
         payload.append({
             "subject": subject.name,
-            "score": res.score,
+            "score": result.score,
             "grade": grade,
-            "remark": remark
+            "remark": remark,
+            "term": result.term,
+            "session": result.session,
         })
+        result_data.append((subject.name, result.score, grade))
 
-        result_data.append((subject.name, res.score, grade))
+    if not payload:
+        return None, (jsonify({"msg": "No valid results found"}), 404)
 
-    average = round(total / len(results), 2)
-
-    return jsonify({
+    average = round(total / len(payload), 2)
+    return {
         "student": student.name,
         "class": student.class_name,
         "reg_no": student.reg_no,
+        "email": student.email,
         "results": payload,
+        "result_data": result_data,
         "total": total,
-        "average": average
-    })
+        "average": average,
+    }, None
 
-# ✅ Email PDF Result to Student's Email
-@result_bp.route('/email/<path:reg_no>', methods=['POST'])
+
+@result_bp.route("/view/<path:reg_no>", methods=["GET"])
+@jwt_required()
+def view_result(reg_no):
+    identity = get_jwt_identity()
+    student, error = get_student_or_404(reg_no)
+    if error:
+        return error
+
+    if identity.get("role") == "student" and not require_student_owner(identity, student):
+        return jsonify({"msg": "Access denied"}), 403
+    if identity.get("role") not in ["student", "admin"]:
+        return jsonify({"msg": "Access denied"}), 403
+
+    data, error = build_result_payload(student)
+    if error:
+        return error
+
+    data.pop("result_data", None)
+    return jsonify(data)
+
+
+@result_bp.route("/email/<path:reg_no>", methods=["POST"])
 @jwt_required()
 def email_result(reg_no):
     identity = get_jwt_identity()
-    if identity['role'] != 'student':
-        return jsonify({"msg": "Access Denied"}), 403
+    student, error = get_student_or_404(reg_no)
+    if error:
+        return error
 
-    student = Student.query.filter_by(reg_no=reg_no).first()
-    if not student:
-        return jsonify({"msg": "Student not found"}), 404
+    if identity.get("role") == "student" and not require_student_owner(identity, student):
+        return jsonify({"msg": "Access denied"}), 403
+    if identity.get("role") not in ["student", "admin"]:
+        return jsonify({"msg": "Access denied"}), 403
+    if not student.email:
+        return jsonify({"msg": "Student email is missing"}), 400
 
-    results = Result.query.filter_by(student_id=student.id).all()
-    if not results:
-        return jsonify({"msg": "No results to email"}), 404
-
-    result_data = []
-    total = 0
-
-    for r in results:
-        subject = Subject.query.get(r.subject_id)
-        if not subject:
-            continue
-        grade = calculate_grade(r.score)
-        total += r.score
-        result_data.append((subject.name, r.score, grade))
-
-    average = round(total / len(results), 2)
+    data, error = build_result_payload(student)
+    if error:
+        return error
 
     pdf_data = generate_result_pdf(
         student_name=student.name,
         class_name=student.class_name,
         reg_no=student.reg_no,
-        term="2nd Term",
-        session="2023/2024",
-        results=result_data,
-        total=total,
-        average=average
+        term=data["results"][0].get("term") or "Current Term",
+        session=data["results"][0].get("session") or "Current Session",
+        results=data["result_data"],
+        total=data["total"],
+        average=data["average"],
     )
 
     html = f"""
@@ -124,72 +148,61 @@ def email_result(reg_no):
         to_email=student.email,
         subject=f"{student.name}'s Academic Result",
         html=html,
-        attachments=[{
-            "filename": f"{student.name}_result.pdf",
-            "data": pdf_data
-        }]
+        attachments=[{"filename": f"{student.name}_result.pdf", "data": pdf_data}],
     )
 
     return jsonify({"msg": "Result emailed successfully"})
 
-# ✅ Download PDF Result (Student)
-@result_bp.route('/download/<path:reg_no>', methods=['GET'])
+
+@result_bp.route("/download/<path:reg_no>", methods=["GET"])
 @jwt_required()
 def download_result(reg_no):
     identity = get_jwt_identity()
-    if identity['role'] != 'student':
-        return jsonify({"msg": "Only students can download results"}), 403
+    student, error = get_student_or_404(reg_no)
+    if error:
+        return error
 
-    return generate_result_pdf_response(reg_no)
+    if identity.get("role") == "student" and not require_student_owner(identity, student):
+        return jsonify({"msg": "Access denied"}), 403
+    if identity.get("role") not in ["student", "admin"]:
+        return jsonify({"msg": "Access denied"}), 403
 
-# ✅ Admin Download Any Result
-@result_bp.route('/admin/download/<path:reg_no>', methods=['GET'])
+    return generate_result_pdf_response(student)
+
+
+@result_bp.route("/admin/download/<path:reg_no>", methods=["GET"])
 @jwt_required()
 def admin_download_result(reg_no):
     identity = get_jwt_identity()
-    if identity['role'] != 'admin':
+    if identity.get("role") != "admin":
         return jsonify({"msg": "Only admins can download student results"}), 403
 
-    return generate_result_pdf_response(reg_no)
+    student, error = get_student_or_404(reg_no)
+    if error:
+        return error
 
-# 🔁 Shared logic between student/admin download
-def generate_result_pdf_response(reg_no):
-    student = Student.query.filter_by(reg_no=reg_no).first()
-    if not student:
-        return jsonify({"msg": "Student not found"}), 404
+    return generate_result_pdf_response(student)
 
-    results = Result.query.filter_by(student_id=student.id).all()
-    if not results:
-        return jsonify({"msg": "No results to download"}), 404
 
-    result_data = []
-    total = 0
-
-    for r in results:
-        subject = Subject.query.get(r.subject_id)
-        if not subject:
-            continue
-        grade = calculate_grade(r.score)
-        total += r.score
-        result_data.append((subject.name, r.score, grade))
-
-    average = round(total / len(results), 2)
+def generate_result_pdf_response(student):
+    data, error = build_result_payload(student)
+    if error:
+        return error
 
     pdf_bytes = generate_result_pdf(
         student_name=student.name,
         class_name=student.class_name,
         reg_no=student.reg_no,
-        term="2nd Term",
-        session="2023/2024",
-        results=result_data,
-        total=total,
-        average=average
+        term=data["results"][0].get("term") or "Current Term",
+        session=data["results"][0].get("session") or "Current Session",
+        results=data["result_data"],
+        total=data["total"],
+        average=data["average"],
     )
 
     return send_file(
         io.BytesIO(pdf_bytes),
         download_name=f"{student.name}_result.pdf",
         mimetype="application/pdf",
-        as_attachment=True
+        as_attachment=True,
     )
-
