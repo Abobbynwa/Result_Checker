@@ -13,7 +13,7 @@ const ViewResults = () => {
           headers: { Authorization: `Bearer ${token}` }
         });
         setResult(res.data);
-      } catch (err) {
+      } catch {
         setResult(null);
       }
     };

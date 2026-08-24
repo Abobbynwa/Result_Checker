@@ -20,7 +20,7 @@ const Login = () => {
 
       if (role === 'student') navigate('/student');
       if (role === 'admin') navigate('/admin');
-    } catch (err) {
+    } catch {
       setError('Invalid credentials');
     }
   };

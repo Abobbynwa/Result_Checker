@@ -1,15 +1,9 @@
 import React from 'react';
-import { useAuth } from '../context/AuthContext';
+import { downloadResult } from '../services/results';
 
 const PDFButton = ({ reg_no }) => {
-  const { token } = useAuth();
-
   const download = () => {
-    const a = document.createElement("a");
-    a.href = `http://localhost:5000/api/results/download/${reg_no}`;
-    a.setAttribute("download", `${reg_no}_result.pdf`);
-    a.setAttribute("target", "_blank");
-    a.click();
+    downloadResult(reg_no);
   };
 
   return <button onClick={download}>⬇️ Download PDF</button>;
